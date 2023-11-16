@@ -8,6 +8,7 @@ class MemosController < ApplicationController
 
   # GET /memos/1
   def show
+    @memo = Memo.find(params[:id])
   end
 
   # GET /memos/new
