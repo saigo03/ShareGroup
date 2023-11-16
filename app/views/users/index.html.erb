@@ -1,21 +1,391 @@
-<p style="color: green"><%= notice %></p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rise Note App</title>
+  <!-- Vue.js CDNを追加 -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+</head>
+<body>
 
-<h1>Users</h1>
+<div id="app">
+  <!-- ヘッダー -->
+  <header>
+    <div class="header-container">
+      <div class="system-name">Rise note</div>
+      <div class="header-buttons">
+        <button @click="showCreateNoteForm">新しくノートを作る</button>
+        <button @click="goToMyPage">マイページ</button>
+      </div>
+    </div>
+  </header>
 
-<div id="users">
-  <% @users.each do |user| %>
-    <%= render user %>
-    <p>
-      <%= link_to "Show this user", user %>
-    </p>
-  <% end %>
+  <!-- メインコンテンツ -->
+  <main @click="closeContextMenu">
+    <!-- ノート作成フォーム -->
+    <div v-if="showCreateNoteFormFlag" class="overlay" style="z-index: 1002;">
+      <div class="create-note-form">
+        <!-- 閉じるボタンを追加 -->
+        <button @click="closeCreateNoteForm" class="close-button">×</button>
+        <div class="centered-form">
+          <label for="noteName">ノート名:</label>
+          <input type="text" id="noteName" v-model="noteName">
+          <button @click="createNote" class="create-button">作成</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 作成したノート -->
+    <div v-if="createdNotes.length > 0" class="note-list" style="z-index: 1001;">
+      <div v-for="(note, index) in createdNotes" :key="index" class="note" @contextmenu.prevent="showContextMenu($event, index)">
+        <div class="note-title">{{ note }}</div>
+      </div>
+    </div>
+
+    <!-- カスタムメニュー -->
+    <div v-if="showContextMenuFlag" class="custom-menu" :style="{ top: `${contextMenuTop}px`, left: `${contextMenuLeft}px` }">
+      <ul>
+        <li @click="deleteNote">削除</li>
+        <li @click="renameNote">名前を変更する</li>
+      </ul>
+    </div>
+
+    <!-- 削除確認ダイアログ -->
+    <div v-if="showDeleteConfirmation" class="overlay">
+      <div class="confirmation-dialog">
+      <p>選択したノートを削除しますか？</p>
+      <button @click="confirmDelete" class="yes-button">はい</button>
+      <button @click="cancelDelete" class="no-button">いいえ</button>
+      </div>
+    </div>
+
+    <!-- 名前変更フォーム -->
+    <div v-if="showRenameForm" class="overlay">
+      <div class="rename-form">
+        <button @click="closeRenameForm" class="close-button">×</button>
+        <label for="newNoteName">新しいノート名:</label>
+        <input type="text" id="newNoteName" v-model="newNoteName">
+        <button @click="confirmRename" class="change-button">変更</button>
+      </div>
+    </div>
+  </main>
 </div>
 
-<%= link_to "New user", new_user_path %>
+<!-- スタイルの追加 -->
+<style>
+header {
+    background-color:rgb(136, 204, 243);
+    padding: 10px;
+    border-bottom: 1px solid #ccc;
+    box-shadow: #3b3939;
+    
+}
+
+.header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.system-name {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.header-buttons button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    text-decoration: underline; /* 下線を追加 */
+    color: #000000;
+    padding: 0;
+    margin-left: 10px;
+}
+.header-buttons button:hover {
+    color: #555;
+}
+.close-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    color: #333; /* ボタンの色 */
+}
+
+.close-button:hover {
+    color: #555; /* ホバー時の色 */
+}
+
+.create-note-form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #edeaea;
+    padding: 20px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    height: 100px; /* 縦幅を広げる */
+    width: 500px;
+    z-index: 1001; /* 追加: 他の要素より前面に表示 */
+}
+
+.create-note-form label {
+    margin-right: 10px;
+}
+
+.create-note-form input {
+    margin-right: 10px; /* 追加: 入力フォームとボタンの間隔を調整 */
+}
+
+.create-note-form button.create-button {
+    padding: 5px 10px;
+    cursor: pointer;
+    background-color: #3498db;
+    color: #fff;
+    border: none;
+    transition: background-color 0.3s, color 0.3s;
+   
+}
+
+.create-note-form button.create-button:hover {
+    background-color: #2980b9;
+    color: #fff;
+}
+.note {
+    position: relative;
+    width: 120px;
+    height: 160px;
+    background-color: #ffffff;
+    border: 1px solid #ccc;
+    margin: 10px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 10px;
+    box-shadow: 0px 0px 5px #aaa;
+    cursor: pointer;
+}
+.note-list {
+    display: flex;
+    flex-wrap: wrap; /* ノートが横に追加されて横に並ぶようにする */
+}
+
+.note-title {
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.custom-menu {
+    position: fixed;
+    background-color: #fff;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+}
+
+.custom-menu ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.custom-menu li {
+    padding: 10px;
+    cursor: pointer;
+    transition: background-color 0.3s; /* 追加: フェードイン/アウトのトランジション */
+}
+.custom-menu li:hover {
+    background-color: #f0f0f0; /* 追加: カーソル合わせ時の背景色 */
+}
+
+.confirmation-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #edeaea;
+    padding: 20px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    z-index: 999;
+    text-align: center; /* ボタンを中央に配置するために追加 */
+}
+
+.yes-button, .no-button {
+    padding: 5px 10px;
+    margin: 5px;
+    cursor: pointer;
+    border: none;
+    font-size: 16px;
+    transition: background-color 0.3s, color 0.3s; /* 色のトランジションを追加 */
+}
+.yes-button {
+    background-color: #e74c3c; /* 赤色 */
+    color: #fff;
+}
+
+.no-button {
+    background-color: #ccc; /* グレー */
+    color: #333;
+}
+
+.yes-button:hover, .no-button:hover {
+    background-color: #3b3939; /* 赤色の薄いバリエーション */
+    color: #fff;
+}
 
 
-<p>あ</p>
-<p>追加コード</p>
-<p>yosizatonetozoo</p>
+.rename-form {
+    position: fixed;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #edeaea;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    z-index: 999;
+    height: 100px; /* 縦幅を広げる */
+    width: 500px;
+    padding: 20px;
+}
+.rename-form label {
+    margin-right: 10px;
+}
+.rename-form input {
+    margin-right: 10px;
+}
 
-<p>１１・１６コードを新しく追加</p>
+.change-button {
+    padding: 5px 10px;
+    cursor: pointer;
+    background-color: #3498db;
+    color: #fff;
+    border: none;
+    transition: background-color 0.3s, color 0.3s;
+}
+.overlay {
+  background-color: rgba(0, 0, 0, 0.5);
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+</style>
+
+<!-- Vue.jsの処理 -->
+<script>
+  new Vue({
+    el: '#app',
+    data: {
+      showCreateNoteFormFlag: false,
+      noteName: '',
+      createdNotes: [],
+      showContextMenuFlag: false,
+      contextMenuTop: 0,
+      contextMenuLeft: 0,
+      showDeleteConfirmation: false,
+      showRenameForm: false,
+      newNoteName: '',
+      selectedNoteIndex: null,
+    },
+    methods: {
+      showCreateNoteForm() {
+        this.showCreateNoteFormFlag = true;
+      },
+      goToMyPage() {
+        // マイページへの遷移の処理を追加する場合はここに実装
+      },
+      closeCreateNoteForm() {
+        this.showCreateNoteFormFlag = false;
+        this.noteName = ''; // フォームをクリア
+      },
+      createNote() {
+        if (this.noteName.trim() !== '') {
+          this.createdNotes.push(this.noteName);
+          this.noteName = ''; // フォームをクリア
+          this.showCreateNoteFormFlag = false; // フォームを非表示に
+        } else {
+          alert('ノート名を入力してください。');
+        }
+      },
+      showContextMenu(event, index) {
+        event.preventDefault();
+        this.showContextMenuFlag = true;
+        this.contextMenuTop = event.clientY;
+        this.contextMenuLeft = event.clientX;
+        this.selectedNoteIndex = index;
+      },
+      deleteNote() {
+        this.showContextMenuFlag = false;
+        this.showDeleteConfirmation = true;
+      },
+      confirmDelete() {
+        if (this.selectedNoteIndex !== null) {
+          this.createdNotes.splice(this.selectedNoteIndex, 1);
+        }
+        this.closeDeleteConfirmation();
+      },
+      cancelDelete() {
+        this.closeDeleteConfirmation();
+      },
+      closeDeleteConfirmation() {
+        this.showDeleteConfirmation = false;
+        this.selectedNoteIndex = null;
+      },
+      renameNote() {
+        this.showContextMenuFlag = false;
+        this.showRenameForm = true;
+        this.newNoteName = this.createdNotes[this.selectedNoteIndex];
+      },
+      confirmRename() {
+        if (this.newNoteName.trim() !== '') {
+          this.createdNotes[this.selectedNoteIndex] = this.newNoteName;
+          this.closeRenameForm();
+        } else {
+          alert('新しいノート名を入力してください。');
+        }
+      },
+      closeRenameForm() {
+        this.showRenameForm = false;
+        this.newNoteName = '';
+        this.selectedNoteIndex = null;
+      },
+      closeContextMenuOnOutsideClick(event) {
+        // コンテキストメニューが表示されているかつクリックされた場所がコンテキストメニュー外である場合に閉じる
+        if (this.showContextMenuFlag && !this.$el.contains(event.target)) {
+          this.closeContextMenu();
+        }
+      },
+      closeContextMenu() {
+        this.showContextMenuFlag = false;
+        this.contextMenuTop = 0;
+        this.contextMenuLeft = 0;
+      },
+    },
+    mounted() {
+      // ドキュメント全体にクリックイベントリスナーを追加
+      document.addEventListener('click', this.closeContextMenuOnOutsideClick);
+    },
+    beforeDestroy() {
+      // コンポーネントが破棄される際にイベントリスナーを削除
+      document.removeEventListener('click', this.closeContextMenuOnOutsideClick);
+    },
+  });
+</script>
+
+</body>
+</html>
